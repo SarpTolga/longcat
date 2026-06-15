@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Model weights / large artifacts (NEVER commit these — they live on the volume)
+weights/
+*.safetensors
+*.ckpt
+*.bin
+*.pt
+
+# Generated media
+*.mp4
+*.avi
+*.mov
+outputs/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude Code local state
+.claude/
