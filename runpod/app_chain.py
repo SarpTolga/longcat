@@ -18,6 +18,7 @@ import sys
 import tempfile
 
 import torch
+import PIL.Image
 import streamlit as st
 from torchvision.io import write_video
 
@@ -84,9 +85,20 @@ prompt = st.text_area("Prompt", height=100,
                       placeholder="Describe the video (and how it should continue)…")
 negative = "" if distill else st.text_area("Negative prompt", value=DEFAULT_NEGATIVE, height=70)
 
+base_source = st.radio("Start the video from", ["Text (T2V)", "Image (I2V)"], horizontal=True,
+                       help="Text generates from scratch; Image animates a picture you upload.")
+ref_image = None
+if base_source == "Image (I2V)":
+    up = st.file_uploader("Reference image", type=["png", "jpg", "jpeg", "webp"])
+    if up is not None:
+        ref_image = PIL.Image.open(up).convert("RGB")
+        st.image(ref_image, caption="Reference (becomes the first frame)", width=240)
+
+needs_image = base_source == "Image (I2V)" and ref_image is None
 col1, col2 = st.columns(2)
 start_clicked = col1.button("🚀 Generate base clip", type="primary",
-                            use_container_width=True, disabled=not prompt.strip())
+                            use_container_width=True,
+                            disabled=not prompt.strip() or needs_image)
 continue_clicked = col2.button("🔗 Continue this video", use_container_width=True,
                                disabled=ss.tail is None or not prompt.strip())
 
@@ -94,14 +106,28 @@ if start_clicked or continue_clicked:
     pipe, generator = get_pipe(model_dir)
     height, width = _resolution_to_hw(resolution)
     generator.manual_seed(int(seed) + ss.n_segments)  # vary per segment
+    # Distill mode needs the distill adapter engaged via use_distill — without it,
+    # 16 steps just runs the base model undertrained (the rough output you saw).
+    extra = {"use_distill": True} if distill else {}
 
     with st.spinner("Generating… (this is the GPU working — minutes, not seconds)"):
-        if start_clicked:
+        if start_clicked and base_source == "Image (I2V)":
+            clip = pipe.generate_i2v(
+                image=ref_image, prompt=prompt, negative_prompt=negative,
+                resolution=resolution, num_frames=NUM_FRAMES,
+                num_inference_steps=int(steps), guidance_scale=float(guidance),
+                generator=generator, **extra,
+            )[0]
+            clip = _as_tensor(clip)
+            ss.video = clip
+            ss.tail = clip
+            ss.n_segments = 1
+        elif start_clicked:
             clip = pipe.generate_t2v(
                 prompt=prompt, negative_prompt=negative,
                 height=height, width=width, num_frames=NUM_FRAMES,
                 num_inference_steps=int(steps), guidance_scale=float(guidance),
-                generator=generator,
+                generator=generator, **extra,
             )[0]
             clip = _as_tensor(clip)
             ss.video = clip
@@ -114,7 +140,7 @@ if start_clicked or continue_clicked:
                 num_cond_frames=NUM_COND_FRAMES,
                 num_inference_steps=int(steps), guidance_scale=float(guidance),
                 generator=generator, use_kv_cache=True, offload_kv_cache=False,
-                enhance_hf=True,
+                enhance_hf=True, **extra,
             )[0]
             clip = _as_tensor(clip)
             # Drop the conditioning overlap so we don't repeat frames in the stitch.
