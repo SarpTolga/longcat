@@ -128,12 +128,29 @@ def load_pipe(args):
     return pipe, generator, global_rank
 
 
+def _as_tensor(video):
+    """Pipeline outputs may be numpy arrays; make them torch tensors so slicing,
+    torch.cat (chaining segments), and saving all work uniformly."""
+    import numpy as np
+    if isinstance(video, np.ndarray):
+        return torch.from_numpy(np.ascontiguousarray(video))
+    return video
+
+
 def _to_uint8_cpu(video):
-    """write_video wants a CPU uint8 (T, H, W, C) tensor; be defensive about dtype."""
-    v = video.detach().cpu()
+    """Coerce a video into the CPU uint8 (T, H, W, C) tensor write_video expects.
+    Handles numpy or torch, float ([0,1] or [0,255]) or uint8, channels-first or last."""
+    v = _as_tensor(video)
+    v = v.detach().cpu() if hasattr(v, "detach") else v.cpu()
+    # channels-first (T, C, H, W) -> channels-last (T, H, W, C)
+    if v.ndim == 4 and v.shape[1] in (1, 3, 4) and v.shape[-1] not in (1, 3, 4):
+        v = v.permute(0, 2, 3, 1)
     if v.dtype != torch.uint8:
-        v = (v.clamp(0, 1) * 255).round().to(torch.uint8)
-    return v
+        v = v.float()
+        if float(v.max()) <= 1.5:          # values in [0,1] -> scale to [0,255]
+            v = v * 255.0
+        v = v.clamp(0, 255).round().to(torch.uint8)
+    return v.contiguous()
 
 
 def _save(video, path, fps, is_writer):
@@ -163,6 +180,7 @@ def main():
         guidance_scale=guidance,
         generator=generator,
     )[0]
+    clip = _as_tensor(clip)
 
     if args.mode == "t2v":
         _save(clip, args.output, args.fps, is_writer)
@@ -189,6 +207,7 @@ def main():
             offload_kv_cache=False,
             enhance_hf=True,
         )[0]
+        cur = _as_tensor(cur)
         _save(cur, f"{base}_seg{i:02d}{ext}", args.fps, is_writer)
         # Drop the conditioning overlap so the stitched video doesn't repeat frames.
         segments.append(cur[NUM_COND_FRAMES:])

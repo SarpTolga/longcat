@@ -30,6 +30,7 @@ from longcat_generate import (  # noqa: E402
     DEFAULT_NEGATIVE,
     _resolution_to_hw,
     _to_uint8_cpu,
+    _as_tensor,
 )
 
 
@@ -102,6 +103,7 @@ if start_clicked or continue_clicked:
                 num_inference_steps=int(steps), guidance_scale=float(guidance),
                 generator=generator,
             )[0]
+            clip = _as_tensor(clip)
             ss.video = clip
             ss.tail = clip
             ss.n_segments = 1
@@ -114,6 +116,7 @@ if start_clicked or continue_clicked:
                 generator=generator, use_kv_cache=True, offload_kv_cache=False,
                 enhance_hf=True,
             )[0]
+            clip = _as_tensor(clip)
             # Drop the conditioning overlap so we don't repeat frames in the stitch.
             ss.video = torch.cat([ss.video, clip[NUM_COND_FRAMES:]], dim=0)
             ss.tail = clip
