@@ -23,6 +23,11 @@ fi
 # shellcheck disable=SC1091
 source "$CONDA_DIR/etc/profile.d/conda.sh"
 
+# Newer Miniconda requires accepting the Anaconda channel Terms of Service before
+# it will create an env non-interactively. Harmless if already accepted / absent.
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main 2>/dev/null || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r 2>/dev/null || true
+
 echo "==> [2/6] Conda env '$ENV_NAME' (python 3.10)"
 if ! conda env list | grep -q "/$ENV_NAME$"; then
   conda create -y -n "$ENV_NAME" python=3.10
