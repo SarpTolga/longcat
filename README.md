@@ -97,6 +97,53 @@ on the volume.
 
 ---
 
+## Custom-prompt generation + long continuous video (`generate.sh`)
+
+The Streamlit UI generates **single clips** (T2V/I2V) and can continue a video you
+upload (VC), but continuity across clips there is **manual** (download → re-upload),
+and the repo's own long-video demo has a **hardcoded** prompt.
+
+`runpod/generate.sh` fixes that: your prompt from the CLI, plus a **`long`** mode
+that makes a base clip and autoregressively continues it, stitching the segments
+into one **continuous** video (each segment reuses the last 13 frames for a seamless
+seam). It calls the same pipeline API as the repo's `run_demo_long_video.py`.
+
+```bash
+# single clip from your prompt
+./runpod/generate.sh --mode t2v \
+  --prompt "A red fox trotting through a snowy forest at golden hour" --output fox.mp4
+
+# long, continuous video: base clip + 5 continuations stitched together
+./runpod/generate.sh --mode long --segments 5 \
+  --prompt "A drone shot gliding over a misty mountain valley at sunrise" --output valley.mp4
+
+# faster (lower quality): distill mode
+./runpod/generate.sh --mode t2v --distill --prompt "..." --output out.mp4
+
+# 2-GPU pod
+GPUS=2 ./runpod/generate.sh --mode long --context-parallel-size 2 --prompt "..." --output out.mp4
+```
+
+Per-segment files (`*_seg00.mp4`, `*_seg01.mp4`, …) are also saved, so a bad stitch
+never loses a render. **First run:** smoke-test `--mode long` once — it mirrors the
+upstream API but hasn't been run on a live pod yet.
+
+### Or do it in the browser — continuous-clip UI
+
+Prefer clicking to typing CLI flags? `runpod/start_chain.sh` launches our custom
+Streamlit app that auto-chains in the browser: generate a base clip, then press
+**🔗 Continue** as many times as you like — each press extends the same video
+seamlessly and re-stitches it, no download/re-upload. Use this instead of
+`start.sh` when you want continuity:
+
+```bash
+./runpod/start_chain.sh        # then RunPod Connect -> HTTP 8080
+```
+
+(`start.sh` still launches the stock UI for I2V / avatar / single clips.)
+
+---
+
 ## CLI generation (power users / batch / avatar)
 
 The Streamlit UI covers the main tasks. For full control (multi-GPU, avatar
@@ -145,6 +192,10 @@ Multi-GPU on any task: prefix with `--nproc_per_node=2` and add
 | `runpod/01_setup.sh` | One-time install onto the volume (idempotent) |
 | `runpod/02_download_weights.sh` | One-time ~60GB weight download |
 | `runpod/start.sh` | **Respin entrypoint** — launches the web UI |
+| `runpod/generate.sh` | Custom-prompt CLI generation + long continuous video |
+| `runpod/longcat_generate.py` | Parameterized generator behind `generate.sh` |
+| `runpod/start_chain.sh` | Launch the **continuous-clip UI** (auto-chaining in the browser) |
+| `runpod/app_chain.py` | Our custom Streamlit app: Generate → Continue → Continue… |
 | `docker/Dockerfile` | Optional: bake the env into an image for instant cold-starts |
 | `docs/GPU_AND_COSTS.md` | GPU pick + cost model + money-saving habits |
 
