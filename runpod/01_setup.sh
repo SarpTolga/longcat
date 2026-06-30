@@ -59,7 +59,15 @@ pip install ninja psutil packaging
 pip install flash_attn==2.7.4.post1 --no-build-isolation
 pip install -r requirements.txt
 conda install -y -c conda-forge librosa ffmpeg
-pip install -r requirements_avatar.txt
+
+# Avatar extras are OPTIONAL (only for audio-driven avatar mode, NOT for
+# T2V/I2V/VC/long). Upstream's requirements_avatar.txt pins `libsndfile1` — a
+# SYSTEM library — via pip, which has no valid PyPI package and aborts the install.
+# Install the system lib via apt, drop that bogus line, and keep avatar best-effort.
+apt-get update -qq && apt-get install -y -qq libsndfile1 || true
+grep -viE '^[[:space:]]*libsndfile1' requirements_avatar.txt > "$TMPDIR/req_avatar.txt" \
+  || cp requirements_avatar.txt "$TMPDIR/req_avatar.txt"
+pip install -r "$TMPDIR/req_avatar.txt" || echo "    (avatar extras skipped — fine for video generation)"
 
 echo "==> [6/6] HuggingFace CLI (for weight downloads)"
 pip install "huggingface_hub[cli]" hf_transfer
