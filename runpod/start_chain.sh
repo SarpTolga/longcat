@@ -20,6 +20,9 @@ ln -sfn "$WEIGHTS_DIR" "$REPO_DIR/weights"
 cp -f "$(pwd)/longcat_generate.py" "$REPO_DIR/longcat_generate.py"
 cp -f "$(pwd)/app_chain.py" "$REPO_DIR/app_chain.py"
 
+# Reduce CUDA memory fragmentation (helps fit larger generations / avoid OOM).
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 cd "$REPO_DIR"
 echo "==> Launching continuous-clip UI on 0.0.0.0:$PORT"
 echo "    In RunPod: Connect -> HTTP Service [Port $PORT]."
