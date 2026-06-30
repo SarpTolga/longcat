@@ -12,6 +12,12 @@ cd "$(dirname "$0")"
 # shellcheck disable=SC1091
 source ./env.sh
 
+# Keep pip's build/temp dir on the SAME filesystem as its wheel cache (both under
+# the volume). Otherwise flash-attn's prebuilt-wheel install fails with
+# "[Errno 18] Invalid cross-device link" when it moves the wheel into the cache.
+export TMPDIR="$WORKSPACE/tmp"
+mkdir -p "$TMPDIR"
+
 echo "==> [1/6] Miniconda (on volume, persists)"
 if [ ! -d "$CONDA_DIR" ]; then
   wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
